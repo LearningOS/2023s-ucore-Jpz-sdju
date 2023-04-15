@@ -2,7 +2,7 @@
 #include "defs.h"
 #include "loader.h"
 #include "trap.h"
-
+#include "timer.h"
 struct proc pool[NPROC];
 char kstack[NPROC][PAGE_SIZE];
 __attribute__((aligned(4096))) char ustack[NPROC][PAGE_SIZE];

@@ -44,7 +44,11 @@ uint64 sys_task_info(TaskInfo *info)
 {
 	info->status = Running;
 	memmove((void *)info->syscall_times, (void *)(curr_proc()->info.syscall_times), sizeof(info->syscall_times));
-	info->time =  get_cycle()- curr_proc()->info.time;
+	printf("%d g cycle",get_cycle());
+	printf("%d c- infotime",curr_proc()->info.time);
+	
+	info->time =  (get_cycle()- curr_proc()->info.time) * 1000/ CPU_FREQ ;
+	return 0;
 }
 /*
 * LAB1: you may need to define sys_task_info here
@@ -84,8 +88,8 @@ void syscall()
 	* LAB1: you may need to add SYS_taskinfo case here
 	*/
 	case SYS_task_info:
-		ret = sys_task_info((TaskInfo *)args[0]);
 		dump_for_syscall_num(SYS_task_info);
+		ret = sys_task_info((TaskInfo *)args[0]);
 		break;
 
 	default:
