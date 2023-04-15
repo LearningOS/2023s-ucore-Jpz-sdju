@@ -34,6 +34,12 @@ void proc_init(void)
 		/*
 		* LAB1: you may need to initialize your new fields of proc here
 		*/
+		p->is_sche = 0;
+		p->info.status = Running; //warn!! this status is fake !
+		for(int i = 0; i < MAX_SYSCALL_NUM; i++){
+			p->info.syscall_times[i] = 0;
+		}
+		p->info.time = 0;
 	}
 	idle.kstack = (uint64)boot_stack_top;
 	idle.pid = 0;
@@ -84,6 +90,10 @@ void scheduler(void)
 				/*
 				* LAB1: you may need to init proc start time here
 				*/
+				if(p->is_sche == 0){
+					p->is_sche = 1;
+					p->info.time = get_cycle();
+				}
 				p->state = RUNNING;
 				current_proc = p;
 				swtch(&idle.context, &p->context);
