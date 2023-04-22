@@ -5,7 +5,10 @@
 #include "timer.h"
 #include "trap.h"
 #include "proc.h"
-
+void dump_for_syscall_num(int syscall_index){
+	struct proc *s = curr_proc();
+	s->info.syscall_times[syscall_index] += 1;
+}
 uint64 sys_write(int fd, uint64 va, uint len)
 {
 	debugf("sys_write fd = %d va = %x, len = %d", fd, va, len);
@@ -35,15 +38,16 @@ uint64 sys_sched_yield()
 
 uint64 sys_gettimeofday(TimeVal *val, int _tz) // TODO: implement sys_gettimeofday in pagetable. (VA to PA)
 {
-	// YOUR CODE
-	val->sec = 0;
-	val->usec = 0;
+	struct proc *p = curr_proc();
+	TimeVal dst;
 
 	/* The code in `ch3` will leads to memory bugs*/
+	uint64 cycle = get_cycle();
+	dst.sec = cycle / CPU_FREQ;
+	dst.usec = (cycle % CPU_FREQ) * 1000000 / CPU_FREQ;
 
-	// uint64 cycle = get_cycle();
-	// val->sec = cycle / CPU_FREQ;
-	// val->usec = (cycle % CPU_FREQ) * 1000000 / CPU_FREQ;
+	copyout(p->pagetable, (uint64)val, (char *)(&dst), sizeof(TimeVal));
+
 	return 0;
 }
 
@@ -65,7 +69,17 @@ uint64 sys_sbrk(int n)
 /*
 * LAB1: you may need to define sys_task_info here
 */
-
+int sys_task_info(TaskInfo *ti){
+	TaskInfo dst ;
+	struct proc *p = curr_proc();
+	dst.status = Running;
+	memmove( (void *)(dst.syscall_times), (void *)(curr_proc()->info.syscall_times), sizeof(dst.syscall_times));
+	printf("%d g cycle\n",get_cycle());
+	printf("%d c- infotime\n",curr_proc()->info.time);
+	dst.time =  (get_cycle()- curr_proc()->info.time) * 1000/ CPU_FREQ ;
+	copyout(p->pagetable, (uint64)ti, (char *)(&dst), sizeof(dst));
+	return 0;
+}
 extern char trap_page[];
 
 void syscall()
@@ -82,22 +96,29 @@ void syscall()
 	switch (id) {
 	case SYS_write:
 		ret = sys_write(args[0], args[1], args[2]);
+		dump_for_syscall_num(SYS_write);
 		break;
 	case SYS_exit:
 		sys_exit(args[0]);
+		dump_for_syscall_num(SYS_exit);
+
 		// __builtin_unreachable();
 	case SYS_sched_yield:
 		ret = sys_sched_yield();
+		dump_for_syscall_num(SYS_sched_yield);
 		break;
 	case SYS_gettimeofday:
+		dump_for_syscall_num(SYS_gettimeofday);
 		ret = sys_gettimeofday((TimeVal *)args[0], args[1]);
 		break;
 	case SYS_sbrk:
 		ret = sys_sbrk(args[0]);
+		dump_for_syscall_num(SYS_sbrk);
 		break;
-	/*
-	* LAB1: you may need to add SYS_taskinfo case here
-	*/
+	case SYS_task_info:
+		dump_for_syscall_num(SYS_task_info);
+		ret = sys_task_info((TaskInfo *)args[0]);
+		break;
 	default:
 		ret = -1;
 		errorf("unknown syscall %d", id);
