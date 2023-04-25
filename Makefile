@@ -3,7 +3,8 @@ all: build_kernel
 
 K = os
 
-TOOLPREFIX = riscv64-unknown-elf-
+# TOOLPREFIX = riscv64-unknown-elf-
+TOOLPREFIX = riscv64-linux-gnu-
 CC = $(TOOLPREFIX)gcc
 AS = $(TOOLPREFIX)gcc
 LD = $(TOOLPREFIX)ld

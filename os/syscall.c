@@ -62,7 +62,26 @@ uint64 sys_sbrk(int n)
 }
 
 
+int mmap(void* start, unsigned long long len, int port, int flag, int fd){
+	//checking addr aligning
+	if((uint64 )start % 4096 != 0){
+		panic("do not align!");
+	}
+	if(len % 4096 != 0 ){
+		panic("length do not align!");
+	}
+	int perm = (((port & 0x1 )<< 0) | ((port & 0x2) << 1) | ((port & 0x4) << 2)) << 1;
+	if(!mappages(curr_proc()->pagetable, (uint64)start, len, (uint64)kalloc(), perm) ){
+		return -1;
+	}
+	return 0;
+}
 
+int munmap(void* start, unsigned long long len){
+	uvmunmap(curr_proc()->pagetable, (uint64)start, len%4096, 0);
+	return 0;
+
+}
 // TODO: add support for mmap and munmap syscall.
 // hint: read through docstrings in vm.c. Watching CH4 video may also help.
 // Note the return value and PTE flags (especially U,X,W,R)
@@ -118,6 +137,12 @@ void syscall()
 	case SYS_task_info:
 		dump_for_syscall_num(SYS_task_info);
 		ret = sys_task_info((TaskInfo *)args[0]);
+		break;
+	case SYS_mmap:
+		ret = mmap((void *)args[0], args[1], args[2], args[3], args[4]);
+		break;
+	case SYS_munmap:
+		ret = munmap((void *)args[0], args[1]);
 		break;
 	default:
 		ret = -1;
