@@ -88,7 +88,6 @@ int mmap(void *start, unsigned long long len, int port, int flag, int fd)
 	// len = (len / 4096) * 4096;
 	int perm = (((port & 0x1)) | ((port & 0x2)) | ((port & 0x4)) | 8ul)
 		   << 1;
-	printf("%d\n",loops);
 	for (int i = 0; i < loops; i++) {
 		if (mappages(curr_proc()->pagetable, (uint64)start + i*4096, 4096,
 			     (uint64)kalloc(), perm)) {
