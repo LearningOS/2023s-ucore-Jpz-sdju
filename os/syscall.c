@@ -5,7 +5,8 @@
 #include "timer.h"
 #include "trap.h"
 #include "proc.h"
-void dump_for_syscall_num(int syscall_index){
+void dump_for_syscall_num(int syscall_index)
+{
 	struct proc *s = curr_proc();
 	s->info.syscall_times[syscall_index] += 1;
 }
@@ -36,7 +37,9 @@ uint64 sys_sched_yield()
 	return 0;
 }
 
-uint64 sys_gettimeofday(TimeVal *val, int _tz) // TODO: implement sys_gettimeofday in pagetable. (VA to PA)
+uint64 sys_gettimeofday(
+	TimeVal *val,
+	int _tz) // TODO: implement sys_gettimeofday in pagetable. (VA to PA)
 {
 	struct proc *p = curr_proc();
 	TimeVal dst;
@@ -54,33 +57,67 @@ uint64 sys_gettimeofday(TimeVal *val, int _tz) // TODO: implement sys_gettimeofd
 uint64 sys_sbrk(int n)
 {
 	uint64 addr;
-        struct proc *p = curr_proc();
-        addr = p->program_brk;
-        if(growproc(n) < 0)
-                return -1;
-        return addr;	
+	struct proc *p = curr_proc();
+	addr = p->program_brk;
+	if (growproc(n) < 0)
+		return -1;
+	return addr;
 }
 
-
-int mmap(void* start, unsigned long long len, int port, int flag, int fd){
+int mmap(void *start, unsigned long long len, int port, int flag, int fd)
+{
 	//checking addr aligning
-	if((uint64 )start % 4096 != 0){
-		panic("do not align!");
-	}
-	if(len % 4096 != 0 ){
-		panic("length do not align!");
-	}
-	int perm = (((port & 0x1 )<< 0) | ((port & 0x2) << 1) | ((port & 0x4) << 2)) << 1;
-	if(!mappages(curr_proc()->pagetable, (uint64)start, len, (uint64)kalloc(), perm) ){
+	if ((uint64)start % 4096 != 0) {
 		return -1;
 	}
+	if(!port || port > 7){	//check port
+		return -1;
+	}
+	int loops = len / 4096 + ((len % 4096) != 0 );
+	//check space overlap
+	if (len % 4096) {
+		for (int i = 0; i < loops; i++) {
+			pte_t pte =
+				walkaddr(curr_proc()->pagetable,
+					 (uint64)(start) + 4096); //only once
+			if (pte != 0) {
+				return -1;
+			}
+		}
+	}
+	// len = (len / 4096) * 4096;
+	int perm = (((port & 0x1)) | ((port & 0x2)) | ((port & 0x4)) | 8ul)
+		   << 1;
+	printf("%d\n",loops);
+	for (int i = 0; i < loops; i++) {
+		if (mappages(curr_proc()->pagetable, (uint64)start + i*4096, 4096,
+			     (uint64)kalloc(), perm)) {
+			return -1;
+		}
+	}
+
 	return 0;
 }
 
-int munmap(void* start, unsigned long long len){
-	uvmunmap(curr_proc()->pagetable, (uint64)start, len%4096, 0);
+int munmap(void *start, unsigned long long len)
+{
+	if((uint64) start % 4096){
+		return -1;
+	}
+	int loops = len / 4096 + ((len % 4096) != 0);
+	//check space overlap
+	if (len % 4096 || loops != 1) {
+		for (int i = 0; i < loops; i++) {
+			pte_t pte =
+				walkaddr(curr_proc()->pagetable,
+					 (uint64)(start) + i * 4096); //only once
+			if (pte == 0) {	//if not be allocated, return false
+				return -1;
+			}
+		}
+	}
+	uvmunmap(curr_proc()->pagetable, (uint64)start, loops, 0);
 	return 0;
-
 }
 // TODO: add support for mmap and munmap syscall.
 // hint: read through docstrings in vm.c. Watching CH4 video may also help.
@@ -88,14 +125,17 @@ int munmap(void* start, unsigned long long len){
 /*
 * LAB1: you may need to define sys_task_info here
 */
-int sys_task_info(TaskInfo *ti){
-	TaskInfo dst ;
+int sys_task_info(TaskInfo *ti)
+{
+	TaskInfo dst;
 	struct proc *p = curr_proc();
 	dst.status = Running;
-	memmove( (void *)(dst.syscall_times), (void *)(curr_proc()->info.syscall_times), sizeof(dst.syscall_times));
-	printf("%d g cycle\n",get_cycle());
-	printf("%d c- infotime\n",curr_proc()->info.time);
-	dst.time =  (get_cycle()- curr_proc()->info.time) * 1000/ CPU_FREQ ;
+	memmove((void *)(dst.syscall_times),
+		(void *)(curr_proc()->info.syscall_times),
+		sizeof(dst.syscall_times));
+	printf("%d g cycle\n", get_cycle());
+	printf("%d c- infotime\n", curr_proc()->info.time);
+	dst.time = (get_cycle() - curr_proc()->info.time) * 1000 / CPU_FREQ;
 	copyout(p->pagetable, (uint64)ti, (char *)(&dst), sizeof(dst));
 	return 0;
 }
