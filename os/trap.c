@@ -29,6 +29,7 @@ void set_kerneltrap()
 void trap_init()
 {
 	// intr_on();
+	//asdfs
 	set_kerneltrap();
 }
 
