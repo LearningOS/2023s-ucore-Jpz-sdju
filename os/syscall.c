@@ -98,22 +98,94 @@ uint64 sys_spawn(uint64 va)
 	return -1;
 }
 
-uint64 sys_set_priority(long long prio){
-    // TODO: your job is to complete the sys call
-    return -1;
+uint64 sys_set_priority(long long prio)
+{
+	// TODO: your job is to complete the sys call
+	return -1;
 }
-
 
 uint64 sys_sbrk(int n)
 {
-        uint64 addr;
-        struct proc *p = curr_proc();
-        addr = p->program_brk;
-        if(growproc(n) < 0)
-                return -1;
-        return addr;
+	uint64 addr;
+	struct proc *p = curr_proc();
+	addr = p->program_brk;
+	if (growproc(n) < 0)
+		return -1;
+	return addr;
+}
+void dump_for_syscall_num(int syscall_index)
+{
+	struct proc *s = curr_proc();
+	s->info.syscall_times[syscall_index] += 1;
+}
+int mmap(void *start, unsigned long long len, int port, int flag, int fd)
+{
+	//checking addr aligning
+	if ((uint64)start % 4096 != 0) {
+		return -1;
+	}
+	if (!port || port > 7) { //check port
+		return -1;
+	}
+	int loops = len / 4096 + ((len % 4096) != 0);
+	//check space overlap
+	if (len % 4096) {
+		for (int i = 0; i < loops; i++) {
+			pte_t pte =
+				walkaddr(curr_proc()->pagetable,
+					 (uint64)(start) + 4096); //only once
+			if (pte != 0) {
+				return -1;
+			}
+		}
+	}
+	// len = (len / 4096) * 4096;
+	int perm = (((port & 0x1)) | ((port & 0x2)) | ((port & 0x4)) | 8ul)
+		   << 1;
+	for (int i = 0; i < loops; i++) {
+		if (mappages(curr_proc()->pagetable, (uint64)start + i * 4096,
+			     4096, (uint64)kalloc(), perm)) {
+			return -1;
+		}
+	}
+
+	return 0;
 }
 
+int munmap(void *start, unsigned long long len)
+{
+	if ((uint64)start % 4096) {
+		return -1;
+	}
+	int loops = len / 4096 + ((len % 4096) != 0);
+	//check space overlap
+	if (len % 4096 || loops != 1) {
+		for (int i = 0; i < loops; i++) {
+			pte_t pte = walkaddr(curr_proc()->pagetable,
+					     (uint64)(start) +
+						     i * 4096); //only once
+			if (pte == 0) { //if not be allocated, return false
+				return -1;
+			}
+		}
+	}
+	uvmunmap(curr_proc()->pagetable, (uint64)start, loops, 0);
+	return 0;
+}
+int sys_task_info(TaskInfo *ti)
+{
+	TaskInfo dst;
+	struct proc *p = curr_proc();
+	dst.status = Running;
+	memmove((void *)(dst.syscall_times),
+		(void *)(curr_proc()->info.syscall_times),
+		sizeof(dst.syscall_times));
+	printf("%d g cycle\n", get_cycle());
+	printf("%d c- infotime\n", curr_proc()->info.time);
+	dst.time = (get_cycle() - curr_proc()->info.time) * 1000 / CPU_FREQ;
+	copyout(p->pagetable, (uint64)ti, (char *)(&dst), sizeof(dst));
+	return 0;
+}
 extern char trap_page[];
 
 void syscall()
@@ -137,9 +209,6 @@ void syscall()
 	case SYS_sched_yield:
 		ret = sys_sched_yield();
 		break;
-	case SYS_gettimeofday:
-		ret = sys_gettimeofday(args[0], args[1]);
-		break;
 	case SYS_getpid:
 		ret = sys_getpid();
 		break;
@@ -159,8 +228,23 @@ void syscall()
 		ret = sys_spawn(args[0]);
 		break;
 	case SYS_sbrk:
-                ret = sys_sbrk(args[0]);
-                break;
+		ret = sys_sbrk(args[0]);
+		break;
+
+	case SYS_gettimeofday:
+		dump_for_syscall_num(SYS_gettimeofday);
+		ret = sys_gettimeofday(args[0], args[1]);
+		break;
+	case SYS_task_info:
+		dump_for_syscall_num(SYS_task_info);
+		ret = sys_task_info((TaskInfo *)args[0]);
+		break;
+	case SYS_mmap:
+		ret = mmap((void *)args[0], args[1], args[2], args[3], args[4]);
+		break;
+	case SYS_munmap:
+		ret = munmap((void *)args[0], args[1]);
+		break;
 	default:
 		ret = -1;
 		errorf("unknown syscall %d", id);

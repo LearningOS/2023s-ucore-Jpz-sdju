@@ -31,7 +31,18 @@ struct context {
 };
 
 enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
-
+#define MAX_SYSCALL_NUM 500
+typedef enum {
+    UnInit,
+    Ready,
+    Running,
+    Exited,
+} TaskStatus;
+typedef struct TaskInfo {
+    TaskStatus status;
+    unsigned int syscall_times[MAX_SYSCALL_NUM];
+    int time;
+} TaskInfo;
 // Per-process state
 struct proc {
 	enum procstate state; // Process state
@@ -47,6 +58,9 @@ struct proc {
 	struct file *files[FD_BUFFER_SIZE];
 	uint64 program_brk;
 	uint64 heap_bottom;
+
+	TaskInfo info;
+	int is_sche;
 };
 
 int cpuid();
