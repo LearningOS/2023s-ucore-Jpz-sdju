@@ -193,8 +193,10 @@ void freewalk(pagetable_t pagetable)
 			// this PTE points to a lower-level page table.
 			uint64 child = PTE2PA(pte);
 			freewalk((pagetable_t)child);
+			printf("free : %p\n", (pte >>10)<<12);
 			pagetable[i] = 0;
 		} else if (pte & PTE_V) {
+			printf("%p\n",pte,&pagetable[i]);
 			panic("freewalk: leaf");
 		}
 	}

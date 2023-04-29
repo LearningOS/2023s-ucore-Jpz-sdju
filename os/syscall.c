@@ -148,7 +148,10 @@ int mmap(void *start, unsigned long long len, int port, int flag, int fd)
 			return -1;
 		}
 	}
-
+	if(curr_proc()->max_page < PGROUNDUP((uint64)start + loops*4096)/4096){
+		curr_proc()->max_page = PGROUNDUP((uint64)start + loops*4096)/4096;
+	}
+	printf("max page!%d\n",curr_proc()->max_page);
 	return 0;
 }
 
