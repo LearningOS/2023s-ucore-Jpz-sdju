@@ -33,15 +33,19 @@ int find_smallest_stride()
 {
 
 	int min = 0;
+	int have_runnable = 0;
 	for (int i = 0; i < NPROC; i++)
 	{
 		if(pool[i].state == RUNNABLE &&pool[i].current_stride <= pool[min].current_stride){
 			min = i;
 		}
+		if(pool[i].state == RUNNABLE ){
+			have_runnable = 1;
+		}
 	}
 	pool[min].current_stride += pool[min].pass;
-	// if(min == 0){
-	// 	return -1;
-	// }
+	if(min == 0 && !have_runnable){
+		return -1;
+	}
 	return min;
 };
