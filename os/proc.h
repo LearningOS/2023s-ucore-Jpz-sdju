@@ -61,6 +61,11 @@ struct proc {
 
 	TaskInfo info;
 	int is_sche;
+
+	//stride
+	long long prio;
+	uint64 current_stride;
+	uint64 pass;
 };
 
 int cpuid();

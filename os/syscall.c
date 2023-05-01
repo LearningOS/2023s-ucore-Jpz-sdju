@@ -108,8 +108,15 @@ uint64 sys_spawn(uint64 va)
 
 uint64 sys_set_priority(long long prio)
 {
-	// TODO: your job is to complete the sys call
-	return -1;
+	struct proc *p = curr_proc();
+	if(prio >=2 && prio <= 0x7fffffff){
+		p->prio = prio;
+		//re caculate pass
+		p->pass = BIG_STRIDE/p->prio;
+		return p->prio;
+	}else {
+		return -1;
+	}
 }
 
 uint64 sys_sbrk(int n)
@@ -219,6 +226,10 @@ void syscall()
 		// __builtin_unreachable();
 	case SYS_sched_yield:
 		ret = sys_sched_yield();
+		break;
+
+	case SYS_setpriority:
+		ret = sys_set_priority((long long)args[0]);
 		break;
 	case SYS_getpid:
 		ret = sys_getpid();

@@ -115,10 +115,12 @@ QEMUGDB = $(shell if $(QEMU) -help | grep -q '^-gdb'; \
 	then echo "-gdb tcp::15234"; \
 	else echo "-s -p 15234"; fi)
 
+# debug: build/kernel .gdbinit
+# 	$(QEMU) $(QEMUOPTS) -S $(QEMUGDB) &
+# 	sleep 1
+# 	$(GDB)
 debug: build/kernel .gdbinit
-	$(QEMU) $(QEMUOPTS) -S $(QEMUGDB) &
-	sleep 1
-	$(GDB)
+	$(QEMU) $(QEMUOPTS) -S $(QEMUGDB) 
 gdb:
 	$(GDB) -ex "file build/kernel" -ex "target remote localhost:15234"
 CHAPTER ?= $(shell git rev-parse --abbrev-ref HEAD | grep -oP 'ch\K[0-9]')

@@ -27,3 +27,21 @@ int pop_queue(struct queue *q)
 		q->empty = 1;
 	return value;
 }
+extern struct  proc pool[NPROC];
+
+int find_smallest_stride()
+{
+
+	int min = 0;
+	for (int i = 0; i < NPROC; i++)
+	{
+		if(pool[i].state == RUNNABLE &&pool[i].current_stride <= pool[min].current_stride){
+			min = i;
+		}
+	}
+	pool[min].current_stride += pool[min].pass;
+	// if(min == 0){
+	// 	return -1;
+	// }
+	return min;
+};
