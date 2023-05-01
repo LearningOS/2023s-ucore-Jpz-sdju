@@ -71,6 +71,7 @@ void scheduler() __attribute__((noreturn));
 void sched();
 void yield();
 int fork();
+int spawn(int id);
 int exec(char *);
 int wait(int, int *);
 void add_task(struct proc *);

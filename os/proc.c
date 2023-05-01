@@ -189,6 +189,21 @@ int fork()
 	add_task(np);
 	return np->pid;
 }
+int spawn(int id)
+{
+	struct proc *np;
+	struct proc *p = curr_proc();
+	// Allocate process.
+	if ((np = allocproc()) == 0) {
+		panic("allocproc\n");
+	}
+
+	loader(id,np);
+	np->parent = p;
+	np->state = RUNNABLE;
+	add_task(np);
+	return np->pid;
+}
 
 int exec(char *name)
 {
