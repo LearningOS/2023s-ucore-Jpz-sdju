@@ -1,0 +1,3 @@
+1.重构sys_taskinfo和getsystime函数，代码的关键是copyin和copyout，因为Timeval和taskinfo结构ptr是从用户程序传递的。它代表虚拟地址。
+
+2.mmap和munmap函数，实现的关键是对vm.c函数的长度判断和理解。
