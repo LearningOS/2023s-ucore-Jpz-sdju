@@ -17,7 +17,8 @@ struct inode {
 	short type; // copy of disk inode
 	uint size;
 	uint addrs[NDIRECT + 1];
-	// LAB4: You may need to add link count here
+
+	short nlink;
 };
 
 // Defines a file in memory that provides information about the current use of the file and the corresponding inode location
@@ -47,4 +48,7 @@ uint64 inoderead(struct file *, uint64, uint64);
 struct file *stdio_init(int);
 int show_all_files();
 
+
+int create_hlink(char *oldpath,char *newpath);
+int remove_hlink(char *path);
 #endif // FILE_H

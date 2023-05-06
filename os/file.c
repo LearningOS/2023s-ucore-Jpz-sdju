@@ -154,3 +154,63 @@ uint64 inoderead(struct file *f, uint64 va, uint64 len)
 		f->off += r;
 	return r;
 }
+int create_hlink(char *oldpath,char *newpath){
+	struct inode *ip,*dp;
+	if ((ip = namei(oldpath)) == 0) {
+		errorf("oldpath not exist\n");
+		return -1;
+	}
+	ivalid(ip);
+	// maybe we can only create hardlink for file?
+	if(ip->type != T_FILE){
+		errorf("hardlink only support file\n");
+		iput(ip);
+		return -1;
+	}
+	// target should not exist
+	struct inode *tmp;
+	if ((tmp = namei(newpath)) != 0) {
+		errorf("name exists\n");
+		iput(tmp);
+		return -1;
+	}
+
+	dp = root_dir(); //Remember that the root_inode is open in this step,so it needs closing then.
+	ivalid(dp);
+
+	if (dirlink(dp, newpath, ip->inum) < 0)
+		panic("create_hlink: dirlink");
+	ip->nlink++;
+	
+	iupdate(ip);
+	iput(ip);
+	iput(dp);
+	return 0;
+}
+
+int remove_hlink(char *path){
+	struct inode *ip,*dp;
+	if ((ip = namei(path)) == 0) {
+		errorf("remove_hlink:file not found\n");
+			return -1;
+	}
+	ivalid(ip);
+	// maybe we can only unlink hardlink for file?
+	if(ip->type != T_FILE){
+		errorf("hardlink only support file\n");
+		iput(ip);
+		return -1;
+	}
+
+	dp = root_dir(); //Remember that the root_inode is open in this step,so it needs closing then.
+	ivalid(dp);
+
+	if (dirunlink(dp, path, ip->inum) < 0)
+		panic("remove_hlink: dirlink");
+	ip->nlink--;
+	
+	iupdate(ip);
+	iput(ip);
+	iput(dp);
+	return 0;
+}

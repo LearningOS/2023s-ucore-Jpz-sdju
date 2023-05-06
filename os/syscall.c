@@ -6,6 +6,7 @@
 #include "timer.h"
 #include "trap.h"
 
+#include "file.h"
 uint64 console_write(uint64 va, uint64 len)
 {
 	struct proc *p = curr_proc();
@@ -177,25 +178,51 @@ uint64 sys_close(int fd)
 	return 0;
 }
 
+struct Stat {
+   uint64 dev;     // 文件所在磁盘驱动号，该实现写死为 0 即可。
+   uint64 ino;     // inode 文件所在 inode 编号
+   uint32 mode;    // 文件类型
+   uint32 nlink;   // 硬链接数量，初始为1
+   uint64 pad[7];  // 无需考虑，为了兼容性设计
+};
+
+// 文件类型只需要考虑:
+#define DIR 0x040000              // directory
+#define FILE 0x100000             // ordinary regular file
+
 int sys_fstat(int fd, uint64 stat)
 {
-	//TODO: your job is to complete the syscall
-	return -1;
+	struct proc *p = curr_proc();
+	struct file *f = p->files[fd];
+
+	struct Stat tmp;
+	tmp.dev = 0;
+	tmp.ino = f->ip->inum;
+	tmp.mode = f->ip->type == T_DIR ? DIR : FILE;
+	tmp.nlink = f->ip->nlink;
+	copyout(p->pagetable,(uint64)stat,(char *)&tmp,sizeof(struct Stat));
+	return 0;
 }
 
 int sys_linkat(int olddirfd, uint64 oldpath, int newdirfd, uint64 newpath,
 	       uint64 flags)
 {
-	//TODO: your job is to complete the syscall
-	return -1;
+	struct proc *p = curr_proc();
+	char path1[200];
+	char path2[200];
+	copyinstr(p->pagetable, path1, oldpath, 200);
+	copyinstr(p->pagetable, path2, newpath, 200);
+
+	return create_hlink(path1,path2);
 }
 
 int sys_unlinkat(int dirfd, uint64 name, uint64 flags)
 {
-	//TODO: your job is to complete the syscall
-	return -1;
+	struct proc *p = curr_proc();
+	char path[200];;
+	copyinstr(p->pagetable, path, name, 200);
+	return remove_hlink(path);
 }
-
 uint64 sys_sbrk(int n)
 {
 	uint64 addr;
