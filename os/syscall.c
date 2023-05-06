@@ -5,9 +5,7 @@
 #include "syscall_ids.h"
 #include "timer.h"
 #include "trap.h"
-/*===========================start=================================*/
 #include "file.h"
-/*=================================================================*/
 uint64 console_write(uint64 va, uint64 len)
 {
 	struct proc *p = curr_proc();
@@ -196,17 +194,9 @@ int sys_fstat(int fd, uint64 stat)
 	tmp_stat.mode = f->ip->type == T_FILE ? FILE : DIR;
 	tmp_stat.nlink = f->ip->nlink;
 	copyout(p->pagetable,(uint64)stat,(char *)&tmp_stat,sizeof(struct Stat));
-// 	{
-//    uint64 dev,     // 文件所在磁盘驱动号，该实现写死为 0 即可。
-//    uint64 ino,     // inode 文件所在 inode 编号
-//    uint32 mode,    // 文件类型
-//    uint32 nlink,   // 硬链接数量，初始为1
-//    uint64 pad[7],  // 无需考虑，为了兼容性设计
-// }
 
 	return 0;
 }
-/*===========================start=================================*/
 int sys_linkat(int olddirfd, uint64 oldpath, int newdirfd, uint64 newpath,
 	       uint64 flags)
 {
@@ -225,7 +215,6 @@ int sys_unlinkat(int dirfd, uint64 name, uint64 flags)
 	copyinstr(p->pagetable, path, name, 200);
 	return remove_hlink(path);
 }
-/*=================================================================*/
 uint64 sys_sbrk(int n)
 {
 	uint64 addr;
@@ -235,7 +224,6 @@ uint64 sys_sbrk(int n)
 		return -1;
 	return addr;
 }
-/*=========================================================*/
 uint64 sys_task_info(TaskInfo* info){
 	TaskInfo k_info;
 	struct proc *p = curr_proc();

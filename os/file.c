@@ -154,7 +154,6 @@ uint64 inoderead(struct file *f, uint64 va, uint64 len)
 		f->off += r;
 	return r;
 }
-/*===========================start=================================*/
 int create_hlink(char *oldpath,char *newpath){
 	struct inode *ip,*dp;
 	if ((ip = namei(oldpath)) == 0) {
