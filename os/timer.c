@@ -22,3 +22,8 @@ void set_next_timer()
 	const uint64 timebase = CPU_FREQ / TICKS_PER_SEC;
 	set_timer(get_cycle() + timebase);
 }
+/*=========================begin===========================*/
+uint64 get_time_now(){
+	return get_cycle() / CPU_FREQ * 1000 + (get_cycle() % CPU_FREQ) * 1000 / CPU_FREQ;
+}
+/*=========================================================*/

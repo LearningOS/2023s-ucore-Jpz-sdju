@@ -278,7 +278,9 @@
 #define SYS_rseq 293
 #define SYS_kexec_file_load 294
 #define SYS_spawn 400
-
+/*=========================begin===========================*/
+#define SYS_task_info 410
+/*=========================================================*/
 #define SYS_pidfd_send_signal 424
 #define SYS_io_uring_setup 425
 #define SYS_io_uring_enter 426

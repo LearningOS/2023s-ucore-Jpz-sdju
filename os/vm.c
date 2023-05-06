@@ -189,6 +189,9 @@ pagetable_t uvmcreate(uint64 trapframe)
 
 // Recursively free page-table pages.
 // All leaf mappings must already have been removed.
+
+/*=========================begin===========================*/
+
 void freewalk(pagetable_t pagetable)
 {
 	// there are 2^9 = 512 PTEs in a page table.
@@ -200,11 +203,22 @@ void freewalk(pagetable_t pagetable)
 			freewalk((pagetable_t)child);
 			pagetable[i] = 0;
 		} else if (pte & PTE_V) {
-			panic("freewalk: leaf");
+			if(get_page_ref(PTE2PA(pte)) == 1){
+				// this frame is owned by current process，although should be freed before
+				// but we can help to free it now.
+				warnf("helped to unmap and free memory\n");
+				uvmunmap(pagetable,PTE2PA(pte),1,1);
+				// panic("then what about freewalk: leaf");
+			}else{
+				// can not figure out if this frame is owned by others, sorry we cannot help. 
+				panic("freewalk: leaf");
+			}
 		}
 	}
 	kfree((void *)pagetable);
 }
+
+/*=========================================================*/
 
 /**
  * @brief Free user memory pages, then free page-table pages.

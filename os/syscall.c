@@ -5,8 +5,9 @@
 #include "syscall_ids.h"
 #include "timer.h"
 #include "trap.h"
-
+/*===========================start=================================*/
 #include "file.h"
+/*=================================================================*/
 uint64 console_write(uint64 va, uint64 len)
 {
 	struct proc *p = curr_proc();
@@ -141,6 +142,110 @@ uint64 sys_wait(int pid, uint64 va)
 	struct proc *p = curr_proc();
 	int *code = (int *)useraddr(p->pagetable, va);
 	return wait(pid, code);
+}
+
+uint64 sys_openat(uint64 va, uint64 omode, uint64 _flags)
+{
+	struct proc *p = curr_proc();
+	char path[200];
+	copyinstr(p->pagetable, path, va, 200);
+	return fileopen(path, omode);
+}
+
+uint64 sys_close(int fd)
+{
+	if (fd < 0 || fd > FD_BUFFER_SIZE)
+		return -1;
+	struct proc *p = curr_proc();
+	struct file *f = p->files[fd];
+	if (f == NULL) {
+		errorf("invalid fd %d", fd);
+		return -1;
+	}
+	fileclose(f);
+	p->files[fd] = 0;
+	return 0;
+}
+
+struct Stat {
+   uint64 dev;     // 文件所在磁盘驱动号，该实现写死为 0 即可。
+   uint64 ino;     // inode 文件所在 inode 编号
+   uint32 mode;    // 文件类型
+   uint32 nlink;   // 硬链接数量，初始为1
+   uint64 pad[7];  // 无需考虑，为了兼容性设计
+};
+
+// 文件类型只需要考虑:
+#define DIR 0x040000              // directory
+#define FILE 0x100000             // ordinary regular file
+
+int sys_fstat(int fd, uint64 stat)
+{
+	if (fd < 0 || fd > FD_BUFFER_SIZE)
+		return -1;
+	struct proc *p = curr_proc();
+	struct file *f = p->files[fd];
+	if (f == NULL) {
+		errorf("invalid fd %d", fd);
+		return -1;
+	}
+
+	struct Stat tmp_stat;
+	tmp_stat.dev = 0;
+	tmp_stat.ino = f->ip->inum;
+	tmp_stat.mode = f->ip->type == T_FILE ? FILE : DIR;
+	tmp_stat.nlink = f->ip->nlink;
+	copyout(p->pagetable,(uint64)stat,(char *)&tmp_stat,sizeof(struct Stat));
+// 	{
+//    uint64 dev,     // 文件所在磁盘驱动号，该实现写死为 0 即可。
+//    uint64 ino,     // inode 文件所在 inode 编号
+//    uint32 mode,    // 文件类型
+//    uint32 nlink,   // 硬链接数量，初始为1
+//    uint64 pad[7],  // 无需考虑，为了兼容性设计
+// }
+
+	return 0;
+}
+/*===========================start=================================*/
+int sys_linkat(int olddirfd, uint64 oldpath, int newdirfd, uint64 newpath,
+	       uint64 flags)
+{
+	struct proc *p = curr_proc();
+	char path1[200];char path2[200];
+	copyinstr(p->pagetable, path1, oldpath, 200);
+	copyinstr(p->pagetable, path2, newpath, 200);
+
+	return create_hlink(path1,path2);
+}
+
+int sys_unlinkat(int dirfd, uint64 name, uint64 flags)
+{
+	struct proc *p = curr_proc();
+	char path[200];;
+	copyinstr(p->pagetable, path, name, 200);
+	return remove_hlink(path);
+}
+/*=================================================================*/
+uint64 sys_sbrk(int n)
+{
+	uint64 addr;
+	struct proc *p = curr_proc();
+	addr = p->program_brk;
+	if (growproc(n) < 0)
+		return -1;
+	return addr;
+}
+/*=========================================================*/
+uint64 sys_task_info(TaskInfo* info){
+	TaskInfo k_info;
+	struct proc *p = curr_proc();
+	uint64 current_time_ms = get_time_now();
+
+	k_info.status = Running;
+	k_info.time = (int)(current_time_ms - p->time);
+	memmove(k_info.syscall_times,p->syscall_times,sizeof(info->syscall_times));
+	copyout(p->pagetable,(uint64)info,(char *)&k_info,sizeof(TaskInfo));
+	return 0;
 }
 
 // this syscall handles va unmap and pa free when map failed
@@ -289,101 +394,23 @@ uint64 sys_spawn(uint64 va)
 	np->trapframe->a0 = 0;
 
 	// let new process have same stride as parent
-	// np->stride = p->stride;
+	np->stride = p->stride;
 	// new process can be scheduled
 	add_task(np);
 
 	return np->pid;
 }
 
-// uint64 sys_set_priority(long long prio){
-//     if(prio < 2){
-// 		errorf("prio need to in [2, isize_max]");
-// 		return -1;
-// 	}
-// 	struct proc *p = curr_proc();
-// 	p->priority = prio;
-// 	return prio;
-// }
-
-uint64 sys_openat(uint64 va, uint64 omode, uint64 _flags)
-{
-	struct proc *p = curr_proc();
-	char path[200];
-	copyinstr(p->pagetable, path, va, 200);
-	return fileopen(path, omode);
-}
-
-uint64 sys_close(int fd)
-{
-	if (fd < 0 || fd > FD_BUFFER_SIZE)
-		return -1;
-	struct proc *p = curr_proc();
-	struct file *f = p->files[fd];
-	if (f == NULL) {
-		errorf("invalid fd %d", fd);
+uint64 sys_set_priority(long long prio){
+    if(prio < 2){
+		errorf("prio need to in [2, isize_max]");
 		return -1;
 	}
-	fileclose(f);
-	p->files[fd] = 0;
-	return 0;
-}
-
-struct Stat {
-   uint64 dev;     // 文件所在磁盘驱动号，该实现写死为 0 即可。
-   uint64 ino;     // inode 文件所在 inode 编号
-   uint32 mode;    // 文件类型
-   uint32 nlink;   // 硬链接数量，初始为1
-   uint64 pad[7];  // 无需考虑，为了兼容性设计
-};
-
-// 文件类型只需要考虑:
-#define DIR 0x040000              // directory
-#define FILE 0x100000             // ordinary regular file
-
-int sys_fstat(int fd, uint64 stat)
-{
 	struct proc *p = curr_proc();
-	struct file *f = p->files[fd];
-
-	struct Stat tmp;
-	tmp.dev = 0;
-	tmp.ino = f->ip->inum;
-	tmp.mode = f->ip->type == T_DIR ? DIR : FILE;
-	tmp.nlink = f->ip->nlink;
-	copyout(p->pagetable,(uint64)stat,(char *)&tmp,sizeof(struct Stat));
-	return 0;
+	p->priority = prio;
+	return prio;
 }
-
-int sys_linkat(int olddirfd, uint64 oldpath, int newdirfd, uint64 newpath,
-	       uint64 flags)
-{
-	struct proc *p = curr_proc();
-	char path1[200];
-	char path2[200];
-	copyinstr(p->pagetable, path1, oldpath, 200);
-	copyinstr(p->pagetable, path2, newpath, 200);
-
-	return create_hlink(path1,path2);
-}
-
-int sys_unlinkat(int dirfd, uint64 name, uint64 flags)
-{
-	struct proc *p = curr_proc();
-	char path[200];;
-	copyinstr(p->pagetable, path, name, 200);
-	return remove_hlink(path);
-}
-uint64 sys_sbrk(int n)
-{
-	uint64 addr;
-	struct proc *p = curr_proc();
-	addr = p->program_brk;
-	if (growproc(n) < 0)
-		return -1;
-	return addr;
-}
-
+/*=========================================================*/
 extern char trap_page[];
 
 void syscall()
@@ -394,6 +421,9 @@ void syscall()
 			   trapframe->a3, trapframe->a4, trapframe->a5 };
 	tracef("syscall %d args = [%x, %x, %x, %x, %x, %x]", id, args[0],
 	       args[1], args[2], args[3], args[4], args[5]);
+/*=========================================================*/
+	curr_proc()->syscall_times[id]++;
+/*=========================================================*/
 	switch (id) {
 	case SYS_write:
 		ret = sys_write(args[0], args[1], args[2]);
@@ -446,15 +476,20 @@ void syscall()
 	case SYS_sbrk:
 		ret = sys_sbrk(args[0]);
 		break;
+/*=========================================================*/
+	case SYS_task_info:
+	    ret = sys_task_info((TaskInfo*)args[0]);
+		break;
 	case SYS_mmap:
 	    ret = sys_mmap(args[0],args[1],args[2],args[3],args[4]);
 		break;
 	case SYS_munmap:
 	    ret = sys_munmap(args[0],args[1]);
 		break;
-	// case SYS_setpriority:
-	//     ret = sys_set_priority(args[0]);
-	// 	break;
+	case SYS_setpriority:
+	    ret = sys_set_priority(args[0]);
+		break;
+/*=========================================================*/
 	default:
 		ret = -1;
 		errorf("unknown syscall %d", id);
