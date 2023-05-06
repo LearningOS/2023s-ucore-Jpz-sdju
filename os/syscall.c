@@ -143,17 +143,168 @@ uint64 sys_wait(int pid, uint64 va)
 	return wait(pid, code);
 }
 
-uint64 sys_spawn(uint64 va)
-{
-	// TODO: your job is to complete the sys call
-	return -1;
+// this syscall handles va unmap and pa free when map failed
+uint64 sys_mmap(uint64 start, uint64 len, int port, int flag, int fd){
+
+	// fall early
+
+	if((port & ~0x7) != 0){
+		errorf("mmap:port contain dirty bits");
+		return 0-1;
+	}
+	if((port & 0x7) == 0 ){
+		errorf("mmap:request non R or W or X memory is meaningless");
+		return -1;
+	}
+	if(!PGALIGNED(start)){
+		errorf("mmap:start address is not page aligned");
+		return -1;
+	}
+	if(len == 0){
+		return 0;
+	}
+	if(len > 1024 * 1024 * 1024){
+		errorf("mmap:too large");
+		return -1;
+	}
+
+	// do the job
+
+	int perm = PTE_U;
+	if(port & 0b1u ){
+		perm |= PTE_R;
+	}
+	if(port & 0b10u ){
+		perm |= PTE_W;
+	}
+	if(port & 0b100u ){
+		perm |= PTE_X;
+	}
+	perm &= (0b11110u);
+
+    struct proc *p = curr_proc();
+
+	int num = PGROUNDUP(len) / PAGE_SIZE;
+	int mapped_pages = 0;
+
+	uint64 pa = 0;
+	uint64 va = start;
+
+	while(mapped_pages < num){
+		pa = (uint64) kalloc();
+		if(pa == 0){
+			// no p memory,unmap and free mapped page ,then fail;
+			uvmunmap(p->pagetable,start,mapped_pages,1);
+			errorf("mmap:no enough physical mem");
+			return -1;
+		}
+		// map phical memory page to user virtual memory space
+		if(mappages(p->pagetable, va, PAGE_SIZE, pa, perm) == -1){
+		    //unmap,free and fail;
+		    uvmunmap(p->pagetable,start,mapped_pages,1);
+
+			// this pa is successfully alloced but not mapped,thus not freed by uvmunmap. 
+			kfree((void *)pa);
+			errorf("mmap:map va to pa failed,possibly already mapped");
+			return -1;
+	    }
+		mapped_pages++;
+		va += PAGE_SIZE;
+	}
+
+	return 0;
 }
 
-uint64 sys_set_priority(long long prio)
-{
-	// TODO: your job is to complete the sys call
-	return -1;
+// this syscall "handles" va remap and pa realloc when unmap failed
+uint64 sys_munmap(uint64 start, uint64 len){
+
+	// fall early
+	if(!PGALIGNED(start)){
+		errorf("munmap:start address is not page aligned");
+		return -1;
+	}
+	if(len == 0){
+		return 0;
+	}
+	if(!PGALIGNED(len)){
+		// not specified, choose to up align len
+	}
+
+	struct proc *p = curr_proc();
+
+	int num = PGROUNDUP(len) / PAGE_SIZE;
+	uint64 va = start;
+	
+	while(num > 0){
+		// useraddr return 0 when no map, but what if the pa been mapped is 0...
+		if(useraddr(p->pagetable,va) == 0){
+		    errorf("munmap:va range contains page that not mapped to pm");
+			return -1;
+	    }
+		va += PAGE_SIZE;
+		num--;
+	}
+	// unmap and free at end, so as to "handle" va unmap and pa free when map failed
+	uvmunmap(p->pagetable,start,PGROUNDUP(len) / PAGE_SIZE,1);
+	return 0;
 }
+
+
+uint64 sys_spawn(uint64 va)
+{
+	struct proc *p = curr_proc();
+	struct proc *np = curr_proc();
+
+	// Allocate process.
+	if ((np = allocproc()) == 0) {
+		return -1;
+	}
+
+	// now:
+	// np->context.ra is (uint64)usertrapret;
+	// np->context.sp is p->kstack + KSTACK_SIZE;
+
+	char path[200];
+	copyinstr(p->pagetable, path, va, 200);
+
+	struct inode *ip;
+	if ((ip = namei(path)) == 0) {
+		errorf("invalid file name %s\n", path);
+		return -1;
+	}
+	bin_loader(ip, np);
+	iput(ip);
+
+	// now:
+	// np->ustack is va_end + PAGE_SIZE;
+	// np->trapframe->sp is np->ustack + USTACK_SIZE;
+	// np->trapframe->epc is va_start;
+	// np->max_page is PGROUNDUP(np->ustack + USTACK_SIZE - 1) / PAGE_SIZE;
+	// np->program_brk is np->ustack + USTACK_SIZE;
+    // np->heap_bottom is np->ustack + USTACK_SIZE;
+	// np->state is RUNNABLE;
+
+	np->parent = p;
+	// new process return 0
+	np->trapframe->a0 = 0;
+
+	// let new process have same stride as parent
+	// np->stride = p->stride;
+	// new process can be scheduled
+	add_task(np);
+
+	return np->pid;
+}
+
+// uint64 sys_set_priority(long long prio){
+//     if(prio < 2){
+// 		errorf("prio need to in [2, isize_max]");
+// 		return -1;
+// 	}
+// 	struct proc *p = curr_proc();
+// 	p->priority = prio;
+// 	return prio;
+// }
 
 uint64 sys_openat(uint64 va, uint64 omode, uint64 _flags)
 {
@@ -295,6 +446,15 @@ void syscall()
 	case SYS_sbrk:
 		ret = sys_sbrk(args[0]);
 		break;
+	case SYS_mmap:
+	    ret = sys_mmap(args[0],args[1],args[2],args[3],args[4]);
+		break;
+	case SYS_munmap:
+	    ret = sys_munmap(args[0],args[1]);
+		break;
+	// case SYS_setpriority:
+	//     ret = sys_set_priority(args[0]);
+	// 	break;
 	default:
 		ret = -1;
 		errorf("unknown syscall %d", id);
