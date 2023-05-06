@@ -123,14 +123,14 @@ QEMUGDB = $(shell if $(QEMU) -help | grep -q '^-gdb'; \
 	then echo "-gdb tcp::15234"; \
 	else echo "-s -p 15234"; fi)
 
-# debug: build/kernel .gdbinit $(F)/fs-copy.img
-# 	$(QEMU) $(QEMUOPTS) -S $(QEMUGDB) &
-# 	sleep 1
-# 	$(GDB)
-clean_copy:
-	rm nfs/fs-copy.img
-debug: build/kernel .gdbinit clean_copy $(F)/fs-copy.img
-	$(QEMU) $(QEMUOPTS) -S $(QEMUGDB) 
+debug: build/kernel .gdbinit $(F)/fs-copy.img
+	$(QEMU) $(QEMUOPTS) -S $(QEMUGDB) &
+	sleep 1
+	$(GDB)
+# clean_copy:
+# 	rm nfs/fs-copy.img
+# debug: build/kernel .gdbinit clean_copy $(F)/fs-copy.img
+# 	$(QEMU) $(QEMUOPTS) -S $(QEMUGDB) 
 gdb:
 	$(GDB) -ex "file build/kernel" -ex "target remote localhost:15234"
 
